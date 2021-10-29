@@ -1,2 +1,12 @@
 build/
 src_bak/
+grpc/
+bin/
+CMakeFiles/
+*.cmake
+src/*.cmake
+test/*.cmake
+src/Makefile
+test/Makefile
+Makefile
+CMakeCache.txt
