@@ -1,6 +1,8 @@
 #include "threadpool.h"
 
 #include <iostream>
+#include <vector>
+#include <fstream>
 #include <grpc/support/log.h>
 #include <grpcpp/grpcpp.h>
 
@@ -22,6 +24,9 @@ using grpc::ServerCompletionQueue;
 using grpc::Status;
 
 Threadpool* threadpool;
+vector<string> vendorIPs;
+
+static int debug_level = 1;
 
 class ServerImpl final {
 public:
@@ -34,8 +39,8 @@ public:
 	ServerImpl(){}
 
 	// There is no shutdown handling in this code.
-	void Run() {
-		string server_address("0.0.0.0:50051");
+	void Run(char* ip) {
+		string server_address(ip);
 
 		ServerBuilder builder;
 		// Listen on the given address without any authentication mechanism.
@@ -89,11 +94,14 @@ private:
 					// part of its FINISH state.
 					new CallData(service_, cq_);
 
-					cout << "Inside Proceed()\n";
+					if(debug_level > 1)
+						cout << "Proceed start" << endl;
 
 					// And we are done! Let the gRPC runtime know we've finished, using the
 					// memory address of this instance as the uniquely identifying tag for
 					// the event.
+					if(debug_level > 1)
+						cout << "Proceed end\n" << endl;
 					status_ = FINISH;
 					responder_.Finish(reply_, Status::OK, this);
 				});
@@ -139,17 +147,44 @@ private:
 		void * tag; // uniquely identifies a request.
 		bool ok;
 		while (true) {
+			if(debug_level > 1)
+				cout << "HandleRpcs start" << endl;
 			// Block waiting to read the next event from the completion queue. The
 			// event is uniquely identified by its tag, which in this case is the
 			// memory address of a CallData instance.
 			// The return value of Next should always be checked. This return value
 			// tells us whether there is any kind of event or cq_ is shutting down.
 			GPR_ASSERT(cq_ -> Next( & tag, & ok));
+
+			if(debug_level > 1)
+				cout << "HandleRpcs received" << endl;
+
 			GPR_ASSERT(ok);
+			if(debug_level > 1)
+				cout << "HandleRpcs ok" << endl;
+
 			static_cast < CallData * > (tag) -> Proceed();
+
+			if(debug_level > 1)
+				cout << "HandleRpcs done" << endl;
 		}
 	}
 };
+
+void get_vendor_ips(char* filename){
+	string line;
+	ifstream myfile(filename);
+	if (myfile.is_open()) {
+		while (getline (myfile,line)) {
+			cout << "reading vendor ip " << line << endl;
+			vendorIPs.push_back(line);
+		}
+		myfile.close();
+	}
+	else {
+		cout << "Unable to open file"; 
+	}
+}
 
 int main(int argc, char** argv) {
 	if(argc != 4) {
@@ -163,9 +198,10 @@ int main(int argc, char** argv) {
 	cout << "Received max threads: " << argv[3] << "\n";
 
 	threadpool = new Threadpool(atoi(argv[3]));
+	get_vendor_ips(argv[1]);
 
 	ServerImpl server;
-	server.Run();
+	server.Run(argv[2]);
 
 	return EXIT_SUCCESS;
 }
