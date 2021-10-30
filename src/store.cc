@@ -41,11 +41,19 @@ static int debug_level = 1;
 
 class VendorClient {
 public:
-    explicit VendorClient(std::shared_ptr < Channel > channel): stub_(Vendor::NewStub(channel)) {}
+    VendorClient() {
+        for(auto vendorIP : vendorIPs){
+            shared_ptr < Channel > channel = grpc::CreateChannel(vendorIP, grpc::InsecureChannelCredentials());
+            stubs_.push_back(Vendor::NewStub(channel));
+        }
+    }
 
     // Assembles the client's payload, sends it and presents the response back
     // from the server.
-    pair < double, string > getProductBid(string vendorIP, string product_name) {
+    vector < pair < double, string > > getProductBid(string product_name) {
+		if(debug_level > 1)
+			cout << "getProductBid start" << endl;
+
         // Data we are sending to the server.
         BidQuery query;
         query.set_product_name(product_name);
@@ -64,49 +72,65 @@ public:
         // Storage for the status of the RPC upon completion.
         Status status;
 
-        // stub_->PrepareAsyncSayHello() creates an RPC object, returning
-        // an instance to store in "call" but does not actually start the RPC
-        // Because we are using the asynchronous API, we need to hold on to
-        // the "call" instance in order to get updates on the ongoing RPC.
-        std::unique_ptr < ClientAsyncResponseReader < BidReply > > rpc(
-            stub_ -> PrepareAsyncgetProductBid( & context, query, & cq));
+		if(debug_level > 1)
+			cout << "getProductBid start" << endl;
+		
+        for(auto itr = stubs_.begin(); itr != stubs_.end(); itr++){
 
-        // StartCall initiates the RPC call
-        rpc -> StartCall();
+			if(debug_level > 1)
+				cout << "getProductBid rpc start" << endl;
 
-        // Request that, upon completion of the RPC, "reply" be updated with the
-        // server's response; "status" with the indication of whether the operation
-        // was successful. Tag the request with the integer 1.
-        rpc -> Finish( & reply, & status, (void * ) 1);
-        void * got_tag;
-        bool ok = false;
-        // Block until the next result is available in the completion queue "cq".
-        // The return value of Next should always be checked. This return value
-        // tells us whether there is any kind of event or the cq_ is shutting down.
-        GPR_ASSERT(cq.Next( & got_tag, & ok));
+            // stub_->PrepareAsyncSayHello() creates an RPC object, returning
+            // an instance to store in "call" but does not actually start the RPC
+            // Because we are using the asynchronous API, we need to hold on to
+            // the "call" instance in order to get updates on the ongoing RPC.
+            std::unique_ptr < ClientAsyncResponseReader < BidReply > > rpc(
+                (*itr) -> PrepareAsyncgetProductBid( & context, query, & cq));
 
-        // Verify that the result from "cq" corresponds, by its tag, our previous
-        // request.
-        GPR_ASSERT(got_tag == (void * ) 1);
-        // ... and that the request was completed successfully. Note that "ok"
-        // corresponds solely to the request for updates introduced by Finish().
-        GPR_ASSERT(ok);
+            // StartCall initiates the RPC call
+            rpc -> StartCall();
+
+            // Request that, upon completion of the RPC, "reply" be updated with the
+            // server's response; "status" with the indication of whether the operation
+            // was successful. Tag the request with the integer 1.
+            rpc -> Finish( & reply, & status, (void * ) 1);
+
+			if(debug_level > 1)
+				cout << "getProductBid rpc async done" << endl;
+        }
 
         // Act upon the status of the actual RPC.
-        pair < double, string > toReturn;
-        if (status.ok()) {
-            toReturn.first = reply.price();
-            toReturn.second = reply.vendor_id();
-            return toReturn;
-        } else {
-            return toReturn;
+        vector < pair < double, string > > toReturn;
+
+        for(int i = 0; i < vendorIPs.size(); i++){
+			if(debug_level > 1)
+				cout << "getProductBid async response" << endl;
+
+            void * got_tag;
+            bool ok = false;
+            // Block until the next result is available in the completion queue "cq".
+            // The return value of Next should always be checked. This return value
+            // tells us whether there is any kind of event or the cq_ is shutting down.
+            GPR_ASSERT(cq.Next( & got_tag, & ok));
+
+            // Verify that the result from "cq" corresponds, by its tag, our previous
+            // request.
+            GPR_ASSERT(got_tag == (void * ) 1);
+            // ... and that the request was completed successfully. Note that "ok"
+            // corresponds solely to the request for updates introduced by Finish().
+            GPR_ASSERT(ok);
+
+            if (status.ok()) 
+                toReturn.push_back({reply.price(), reply.vendor_id()});
         }
+
+        return toReturn;
     }
 
 private:
     // Out of the passed in Channel comes the stub, stored here, our view of the
     // server's exposed services.
-    std::unique_ptr < Vendor::Stub > stub_;
+    vector < unique_ptr < Vendor::Stub > > stubs_;
 };
 
 class ServerImpl final {
@@ -170,22 +194,26 @@ private:
 					this);
 			} else if (status_ == PROCESS) {
 				threadpool->add_job([this](){
+					if(debug_level > 1)
+						cout << "Proceed start" << endl;
+
 					// Spawn a new CallData instance to serve new clients while we process
 					// the one for this CallData. The instance will deallocate itself as
 					// part of its FINISH state.
 					new CallData(service_, cq_);
 
 					if(debug_level > 1)
-						cout << "Proceed start" << endl;
+						cout << "Proceed after calldata" << endl;
 
 					string product_name = request_.product_name();
 
-					for(int i = 0; i < vendorIPs.size(); i++) {
-						VendorClient client(grpc::CreateChannel(vendorIPs[i], grpc::InsecureChannelCredentials()));
-						pair<double, string> response = client.getProductBid(vendorIPs[i], product_name);
+					VendorClient client;
+                    vector < pair<double, string> > response = client.getProductBid(product_name);
+
+					for(int i = 0; i < response.size(); i++) {
 						ProductInfo *product = reply_.add_products();
-						product->set_price(response.first);
-						product->set_vendor_id(response.second);
+						product->set_price(response[i].first);
+                        product->set_vendor_id(response[i].second);
 					}
 
 					// And we are done! Let the gRPC runtime know we've finished, using the
