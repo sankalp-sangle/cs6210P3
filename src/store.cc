@@ -40,74 +40,73 @@ vector<string> vendorIPs;
 static int debug_level = 1;
 
 class VendorClient {
- public:
-  explicit VendorClient(std::shared_ptr<Channel> channel)
-      : stub_(Vendor::NewStub(channel)) {}
+public:
+    explicit VendorClient(std::shared_ptr < Channel > channel): stub_(Vendor::NewStub(channel)) {}
 
-  // Assembles the client's payload, sends it and presents the response back
-  // from the server.
-  pair<double, string> getProductBid(string vendorIP, string product_name) {
-    // Data we are sending to the server.
-    BidQuery query;
-    query.set_product_name(product_name);
+    // Assembles the client's payload, sends it and presents the response back
+    // from the server.
+    pair < double, string > getProductBid(string vendorIP, string product_name) {
+        // Data we are sending to the server.
+        BidQuery query;
+        query.set_product_name(product_name);
 
-    // Container for the data we expect from the server.
-    BidReply reply;
+        // Container for the data we expect from the server.
+        BidReply reply;
 
-    // Context for the client. It could be used to convey extra information to
-    // the server and/or tweak certain RPC behaviors.
-    ClientContext context;
+        // Context for the client. It could be used to convey extra information to
+        // the server and/or tweak certain RPC behaviors.
+        ClientContext context;
 
-    // The producer-consumer queue we use to communicate asynchronously with the
-    // gRPC runtime.
-    CompletionQueue cq;
+        // The producer-consumer queue we use to communicate asynchronously with the
+        // gRPC runtime.
+        CompletionQueue cq;
 
-    // Storage for the status of the RPC upon completion.
-    Status status;
+        // Storage for the status of the RPC upon completion.
+        Status status;
 
-    // stub_->PrepareAsyncSayHello() creates an RPC object, returning
-    // an instance to store in "call" but does not actually start the RPC
-    // Because we are using the asynchronous API, we need to hold on to
-    // the "call" instance in order to get updates on the ongoing RPC.
-    std::unique_ptr<ClientAsyncResponseReader<BidReply> > rpc(
-        stub_->PrepareAsyncgetProductBid(&context, query, &cq));
+        // stub_->PrepareAsyncSayHello() creates an RPC object, returning
+        // an instance to store in "call" but does not actually start the RPC
+        // Because we are using the asynchronous API, we need to hold on to
+        // the "call" instance in order to get updates on the ongoing RPC.
+        std::unique_ptr < ClientAsyncResponseReader < BidReply > > rpc(
+            stub_ -> PrepareAsyncgetProductBid( & context, query, & cq));
 
-    // StartCall initiates the RPC call
-    rpc->StartCall();
+        // StartCall initiates the RPC call
+        rpc -> StartCall();
 
-    // Request that, upon completion of the RPC, "reply" be updated with the
-    // server's response; "status" with the indication of whether the operation
-    // was successful. Tag the request with the integer 1.
-    rpc->Finish(&reply, &status, (void*)1);
-    void* got_tag;
-    bool ok = false;
-    // Block until the next result is available in the completion queue "cq".
-    // The return value of Next should always be checked. This return value
-    // tells us whether there is any kind of event or the cq_ is shutting down.
-    GPR_ASSERT(cq.Next(&got_tag, &ok));
+        // Request that, upon completion of the RPC, "reply" be updated with the
+        // server's response; "status" with the indication of whether the operation
+        // was successful. Tag the request with the integer 1.
+        rpc -> Finish( & reply, & status, (void * ) 1);
+        void * got_tag;
+        bool ok = false;
+        // Block until the next result is available in the completion queue "cq".
+        // The return value of Next should always be checked. This return value
+        // tells us whether there is any kind of event or the cq_ is shutting down.
+        GPR_ASSERT(cq.Next( & got_tag, & ok));
 
-    // Verify that the result from "cq" corresponds, by its tag, our previous
-    // request.
-    GPR_ASSERT(got_tag == (void*)1);
-    // ... and that the request was completed successfully. Note that "ok"
-    // corresponds solely to the request for updates introduced by Finish().
-    GPR_ASSERT(ok);
+        // Verify that the result from "cq" corresponds, by its tag, our previous
+        // request.
+        GPR_ASSERT(got_tag == (void * ) 1);
+        // ... and that the request was completed successfully. Note that "ok"
+        // corresponds solely to the request for updates introduced by Finish().
+        GPR_ASSERT(ok);
 
-    // Act upon the status of the actual RPC.
-	pair<double, string> toReturn;
-    if (status.ok()) {
-      toReturn.first = reply.price();
-	  toReturn.second = reply.vendor_id();
-	  return toReturn;
-    } else {
-		return toReturn;
+        // Act upon the status of the actual RPC.
+        pair < double, string > toReturn;
+        if (status.ok()) {
+            toReturn.first = reply.price();
+            toReturn.second = reply.vendor_id();
+            return toReturn;
+        } else {
+            return toReturn;
+        }
     }
-  }
 
- private:
-  // Out of the passed in Channel comes the stub, stored here, our view of the
-  // server's exposed services.
-  std::unique_ptr<Vendor::Stub> stub_;
+private:
+    // Out of the passed in Channel comes the stub, stored here, our view of the
+    // server's exposed services.
+    std::unique_ptr < Vendor::Stub > stub_;
 };
 
 class ServerImpl final {
@@ -140,22 +139,22 @@ public:
 		// Proceed to the server's main loop.
 		HandleRpcs();
 	}
-private:
 
+private:
 	unique_ptr < ServerCompletionQueue > cq_;
 	Store::AsyncService service_;
 	unique_ptr < Server > server_;
 
 	// Class encompasing the state and logic needed to serve a request.
 	class CallData {
-		public:
-			// Take in the "service" instance (in this case representing an asynchronous
-			// server) and the completion queue "cq" used for asynchronous communication
-			// with the gRPC runtime.
-			CallData(Store::AsyncService * service, ServerCompletionQueue * cq): service_(service), cq_(cq), responder_( & ctx_), status_(CREATE) {
-				// Invoke the serving logic right away.
-				Proceed();
-			}
+    public:
+        // Take in the "service" instance (in this case representing an asynchronous
+        // server) and the completion queue "cq" used for asynchronous communication
+        // with the gRPC runtime.
+        CallData(Store::AsyncService * service, ServerCompletionQueue * cq): service_(service), cq_(cq), responder_( & ctx_), status_(CREATE) {
+            // Invoke the serving logic right away.
+            Proceed();
+        }
 
 		void Proceed() {
 			if (status_ == CREATE) {
@@ -204,7 +203,7 @@ private:
 			}
 		}
 
-		private:
+	private:
 		// The means of communication with the gRPC runtime for an asynchronous
 		// server.
 		Store::AsyncService * service_;
