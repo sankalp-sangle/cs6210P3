@@ -37,7 +37,7 @@ using vendor::BidReply;
 Threadpool* threadpool;
 vector<string> vendorIPs;
 
-static int debug_level = 1;
+static int debug_level = 2;
 
 class VendorClient {
 public:
@@ -61,10 +61,6 @@ public:
         // Container for the data we expect from the server.
         BidReply reply;
 
-        // Context for the client. It could be used to convey extra information to
-        // the server and/or tweak certain RPC behaviors.
-        ClientContext context;
-
         // The producer-consumer queue we use to communicate asynchronously with the
         // gRPC runtime.
         CompletionQueue cq;
@@ -76,6 +72,9 @@ public:
 			cout << "getProductBid start" << endl;
 		
         for(auto itr = stubs_.begin(); itr != stubs_.end(); itr++){
+			// Context for the client. It could be used to convey extra information to
+			// the server and/or tweak certain RPC behaviors.
+			ClientContext context;
 
 			if(debug_level > 1)
 				cout << "getProductBid rpc start" << endl;
