@@ -10,7 +10,7 @@
 
 using namespace std;
 
-static int debug_level_threadpool = 1;
+static int debug_level_threadpool = 0;
 
 // Idea taken from
 // https://stackoverflow.com/questions/15752659/thread-pooling-in-c11

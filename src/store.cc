@@ -37,7 +37,7 @@ using vendor::BidReply;
 Threadpool* threadpool;
 vector<string> vendorIPs;
 
-static int debug_level = 2;
+static int debug_level = 0;
 
 class VendorClient {
 public:
