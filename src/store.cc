@@ -71,6 +71,9 @@ public:
 		if(debug_level > 1)
 			cout << "getProductBid start" << endl;
 		
+		// Since a stub is of type unique pointer, no copy can be created for this.
+		// Hence we cannot use index based iterator or every auto based iterators
+		// The only solution here is to use explicit iterators
         for(auto itr = stubs_.begin(); itr != stubs_.end(); itr++){
 			// Context for the client. It could be used to convey extra information to
 			// the server and/or tweak certain RPC behaviors.
